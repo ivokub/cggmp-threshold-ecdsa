@@ -118,6 +118,7 @@ impl Round1 {
 					&mut local_key,
 					&self.old_to_new_map,
 					self.n,
+					self.t,
 				);
 				let refresh_message = refresh_message_result.unwrap();
 				let new_paillier_dk = refresh_message.clone().1;

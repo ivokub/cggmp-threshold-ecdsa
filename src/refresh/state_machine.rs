@@ -709,4 +709,114 @@ pub mod test {
 		);
 		assert_ne!(old_linear_secret_key, new_linear_secret_key);
 	}
+
+	// Refresh keys: update the threshold by one
+	pub fn simulate_dkr_with_change_threshold(
+		old_local_keys: Vec<LocalKey<Secp256k1>>,
+		old_to_new_map: &HashMap<u16, u16>,
+		new_t: u16,
+	) -> Vec<LocalKey<Secp256k1>> {
+		let mut simulation = Simulation::new();
+		simulation.enable_benchmarks(false);
+
+		for old_local_key in old_local_keys {
+			simulation.add_party(
+				KeyRefresh::new(
+					Some(old_local_key.clone()),
+					None,
+					old_to_new_map,
+					new_t,
+					old_local_key.n,
+				)
+				.unwrap(),
+			);
+		}
+
+		simulation.run().unwrap()
+	}
+
+	#[test]
+	pub fn test_dkr_with_increase_threshold() {
+		let t = 2;
+		let new_t = t+1;
+		let n = 5;
+		let local_keys = simulate_keygen(t, n);
+
+		let old_local_keys = local_keys.clone();
+		let mut old_to_new_map = HashMap::new();
+		old_to_new_map.insert(1, 1);
+		old_to_new_map.insert(2, 2);
+		old_to_new_map.insert(3, 3);
+		old_to_new_map.insert(4, 4);
+		old_to_new_map.insert(5, 5);
+		let mut new_local_keys = simulate_dkr_with_change_threshold(local_keys, &old_to_new_map, new_t);
+		new_local_keys.sort_by(|a, b| a.i.cmp(&b.i));
+		let old_linear_secret_key: Vec<_> = (0..old_local_keys.len())
+			.map(|i| old_local_keys[i].keys_linear.x_i.clone())
+			.collect();
+
+		let new_linear_secret_key: Vec<_> = (0..new_local_keys.len())
+			.map(|i| new_local_keys[i].keys_linear.x_i.clone())
+			.collect();
+		let indices: Vec<_> = (0..(t + 1)).collect();
+		let vss = VerifiableSS::<Secp256k1, sha2::Sha256> {
+			parameters: ShamirSecretSharing { threshold: t, share_count: n },
+			commitments: Vec::new(),
+			proof: DLogProof::<Secp256k1, sha2::Sha256>::prove(&Scalar::random()),
+		};
+		let indices2: Vec<_> = (0..(new_t+1)).collect();
+		let vss2 = VerifiableSS::<Secp256k1, sha2::Sha256> {
+			parameters: ShamirSecretSharing { threshold: new_t, share_count: n },
+			commitments: Vec::new(),
+			proof: DLogProof::<Secp256k1, sha2::Sha256>::prove(&Scalar::random()),
+		};
+
+		assert_eq!(
+			vss.reconstruct(&indices[..], &old_linear_secret_key[0..(t + 1) as usize]),
+			vss2.reconstruct(&indices2[..], &new_linear_secret_key[0..(new_t + 1) as usize])
+		);
+		assert_ne!(old_linear_secret_key, new_linear_secret_key);
+	}
+
+	#[test]
+	pub fn test_dkr_with_decrease_threshold() {
+		let t = 2;
+		let new_t = t-1;
+		let n = 5;
+		let local_keys = simulate_keygen(t, n);
+
+		let old_local_keys = local_keys.clone();
+		let mut old_to_new_map = HashMap::new();
+		old_to_new_map.insert(1, 1);
+		old_to_new_map.insert(2, 2);
+		old_to_new_map.insert(3, 3);
+		old_to_new_map.insert(4, 4);
+		old_to_new_map.insert(5, 5);
+		let mut new_local_keys = simulate_dkr_with_change_threshold(local_keys, &old_to_new_map, new_t);
+		new_local_keys.sort_by(|a, b| a.i.cmp(&b.i));
+		let old_linear_secret_key: Vec<_> = (0..old_local_keys.len())
+			.map(|i| old_local_keys[i].keys_linear.x_i.clone())
+			.collect();
+
+		let new_linear_secret_key: Vec<_> = (0..new_local_keys.len())
+			.map(|i| new_local_keys[i].keys_linear.x_i.clone())
+			.collect();
+		let indices: Vec<_> = (0..(t + 1)).collect();
+		let vss = VerifiableSS::<Secp256k1, sha2::Sha256> {
+			parameters: ShamirSecretSharing { threshold: t, share_count: n },
+			commitments: Vec::new(),
+			proof: DLogProof::<Secp256k1, sha2::Sha256>::prove(&Scalar::random()),
+		};
+		let indices2: Vec<_> = (0..(new_t+1)).collect();
+		let vss2 = VerifiableSS::<Secp256k1, sha2::Sha256> {
+			parameters: ShamirSecretSharing { threshold: new_t, share_count: n },
+			commitments: Vec::new(),
+			proof: DLogProof::<Secp256k1, sha2::Sha256>::prove(&Scalar::random()),
+		};
+
+		let a = vss.reconstruct(&indices[..], &old_linear_secret_key[0..(t + 1) as usize]);
+		let b = vss2.reconstruct(&indices2[..], &new_linear_secret_key[0..(new_t + 1) as usize]);
+		assert_eq!(a,b);
+		assert_ne!(old_linear_secret_key, new_linear_secret_key);
+	}
 }
