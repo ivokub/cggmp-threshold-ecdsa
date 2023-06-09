@@ -21,7 +21,6 @@ use paillier::{EncryptionKey, Randomness};
 use zk_paillier::zkproofs::DLogStatement;
 
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
 use zeroize::Zeroize;
 
 /// Represents the first round of the interactive version of the proof
@@ -52,7 +51,7 @@ impl AliceZkpRound1 {
 		let gamma = BigInt::sample_below(&(q.pow(3) * N_tilde));
 		let ro = BigInt::sample_below(&(q * N_tilde));
 		let z = (BigInt::mod_pow(h1, a, N_tilde) * BigInt::mod_pow(h2, &ro, N_tilde)) % N_tilde;
-		let u = ((alpha.borrow() * &alice_ek.n + 1) *
+		let u = ((&alpha * &alice_ek.n + 1) *
 			BigInt::mod_pow(&beta, &alice_ek.n, &alice_ek.nn)) %
 			&alice_ek.nn;
 		let w =
@@ -77,9 +76,9 @@ impl AliceZkpRound2 {
 		r: &BigInt,
 	) -> Self {
 		Self {
-			s: (BigInt::mod_pow(r, e, &alice_ek.n) * round1.beta.borrow()) % &alice_ek.n,
-			s1: (e * a) + round1.alpha.borrow(),
-			s2: (e * round1.ro.borrow()) + round1.gamma.borrow(),
+			s: (BigInt::mod_pow(r, e, &alice_ek.n) * &round1.beta) % &alice_ek.n,
+			s1: (e * a) + &round1.alpha,
+			s2: (e * &round1.ro) + &round1.gamma,
 		}
 	}
 }
@@ -107,7 +106,7 @@ impl AliceProof {
 		let N_tilde = &dlog_statement.N;
 		let h1 = &dlog_statement.g;
 		let h2 = &dlog_statement.ni;
-		let Gen = alice_ek.n.borrow() + 1;
+		let Gen = &alice_ek.n + 1;
 
 		if self.s1 > Scalar::<Secp256k1>::group_order().pow(3) {
 			return false
@@ -124,7 +123,7 @@ impl AliceProof {
 			BigInt::mod_pow(h2, &self.s2, N_tilde) *
 			z_e_inv) % N_tilde;
 
-		let gs1 = (self.s1.borrow() * N + 1) % NN;
+		let gs1 = (&self.s1 * N + 1) % NN;
 		let cipher_e_inv = BigInt::mod_inv(&BigInt::mod_pow(cipher, &self.e, NN), NN);
 		let cipher_e_inv = match cipher_e_inv {
 			None => return false,
@@ -160,7 +159,7 @@ impl AliceProof {
 		let round1 =
 			AliceZkpRound1::from(alice_ek, dlog_statement, a, Scalar::<Secp256k1>::group_order());
 
-		let Gen = alice_ek.n.borrow() + 1;
+		let Gen = &alice_ek.n + 1;
 		let e = Sha256::new()
 			.chain_bigint(&alice_ek.n)
 			.chain_bigint(&Gen)
@@ -227,7 +226,7 @@ impl BobZkpRound1 {
 		let w =
 			(BigInt::mod_pow(h1, &gamma, N_tilde) * BigInt::mod_pow(h2, &tau, N_tilde)) % N_tilde;
 		let v = (BigInt::mod_pow(a_encrypted, &alpha, &alice_ek.nn) *
-			(gamma.borrow() * &alice_ek.n + 1) *
+			(&gamma * &alice_ek.n + 1) *
 			BigInt::mod_pow(&beta, &alice_ek.n, &alice_ek.nn)) %
 			&alice_ek.nn;
 		Self { alpha, beta, gamma, ro, ro_prim, sigma, tau, z, z_prim, t, w, v }
@@ -258,11 +257,11 @@ impl BobZkpRound2 {
 	) -> Self {
 		let b_bn = b.to_bigint();
 		Self {
-			s: (BigInt::mod_pow(r.0.borrow(), e, &alice_ek.n) * round1.beta.borrow()) % &alice_ek.n,
-			s1: (e * b_bn) + round1.alpha.borrow(),
-			s2: (e * round1.ro.borrow()) + round1.ro_prim.borrow(),
-			t1: (e * beta_prim) + round1.gamma.borrow(),
-			t2: (e * round1.sigma.borrow()) + round1.tau.borrow(),
+			s: (BigInt::mod_pow(&r.0, e, &alice_ek.n) * &round1.beta) % &alice_ek.n,
+			s1: (e * b_bn) + &round1.alpha,
+			s2: (e * &round1.ro) + &round1.ro_prim,
+			t1: (e * beta_prim) + &round1.gamma,
+			t2: (e * &round1.sigma) + &round1.tau,
 		}
 	}
 }
@@ -325,7 +324,7 @@ impl BobProof {
 
 		let v = (BigInt::mod_pow(a_enc, &self.s1, NN) *
 			BigInt::mod_pow(&self.s, N, NN) *
-			(self.t1.borrow() * N + 1) *
+			(&self.t1 * N + 1) *
 			mta_e_inv) % NN;
 
 		let t_e_inv = BigInt::mod_inv(&BigInt::mod_pow(&self.t, &self.e, N_tilde), N_tilde);
@@ -338,7 +337,7 @@ impl BobProof {
 			BigInt::mod_pow(h2, &self.t2, N_tilde) *
 			t_e_inv) % N_tilde;
 
-		let Gen = alice_ek.n.borrow() + 1;
+		let Gen = &alice_ek.n + 1;
 		let mut values_to_hash =
 			vec![&alice_ek.n, &Gen, a_enc, mta_avc_out, &self.z, &z_prim, &self.t, &v, &w];
 		let e = match check {
@@ -388,7 +387,7 @@ impl BobProof {
 			Scalar::<Secp256k1>::group_order(),
 		);
 
-		let Gen = alice_ek.n.borrow() + 1;
+		let Gen = &alice_ek.n + 1;
 		let mut values_to_hash = vec![
 			&alice_ek.n,
 			&Gen,
@@ -507,7 +506,7 @@ impl SampleFromMultiplicativeGroup for BigInt {
 	}
 
 	fn from_paillier_key(ek: &EncryptionKey) -> BigInt {
-		Self::from_modulo(ek.n.borrow())
+		Self::from_modulo(&ek.n)
 	}
 }
 
